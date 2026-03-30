@@ -25,7 +25,7 @@ class TokenManager:
             config: 配置字典
         """
         self.token_json_dir = config.get("token_json_dir", "tokens")
-        self.upload_api_url = config.get("upload_api_url", "")
+        self.upload_api_url = config.get("upload_api_url", "").strip()
         self.upload_api_token = config.get("upload_api_token", "")
         
         # 确保 token 目录存在

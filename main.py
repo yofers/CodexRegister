@@ -83,61 +83,41 @@ def register_one_account(idx, total, mail_client, token_manager, oauth_client, c
             
             print(f"{tag} ✅ 注册成功")
             
-            # 5. OAuth 登录获取 Token（如果启用）
-            enable_oauth = as_bool(config.get("enable_oauth", True))
-            oauth_required = as_bool(config.get("oauth_required", True))
+            # 5. OAuth 登录获取 Token（固定启用且必需成功）
+            print(f"{tag} 开始 OAuth 登录...")
             
-            if enable_oauth:
-                print(f"{tag} 开始 OAuth 登录...")
+            # 直接使用 ChatGPT 客户端的 session 进行 OAuth（关键！）
+            # 不创建新的 OAuthClient，而是复用注册时的 session
+            oauth_client_reuse = OAuthClient(config, proxy=config.get("proxy", ""), verbose=True)
+            # 在初始化后立即替换 session，保留注册时的所有 cookies
+            oauth_client_reuse.session = chatgpt_client.session
+            
+            tokens = oauth_client_reuse.login_and_get_tokens(
+                email, password,
+                chatgpt_client.device_id,
+                chatgpt_client.ua,
+                chatgpt_client.sec_ch_ua,
+                chatgpt_client.impersonate,
+                mail_client
+            )
+            
+            if tokens and tokens.get("access_token"):
+                print(f"{tag} ✅ OAuth 成功")
+                token_manager.save_tokens(email, tokens)
                 
-                # 直接使用 ChatGPT 客户端的 session 进行 OAuth（关键！）
-                # 不创建新的 OAuthClient，而是复用注册时的 session
-                oauth_client_reuse = OAuthClient(config, proxy=config.get("proxy", ""), verbose=True)
-                # 在初始化后立即替换 session，保留注册时的所有 cookies
-                oauth_client_reuse.session = chatgpt_client.session
-                
-                tokens = oauth_client_reuse.login_and_get_tokens(
-                    email, password,
-                    chatgpt_client.device_id,
-                    chatgpt_client.ua,
-                    chatgpt_client.sec_ch_ua,
-                    chatgpt_client.impersonate,
-                    mail_client
-                )
-                
-                if tokens and tokens.get("access_token"):
-                    print(f"{tag} ✅ OAuth 成功")
-                    token_manager.save_tokens(email, tokens)
-                    
-                    # 保存账号信息
-                    output_file = config.get("output_file", "registered_accounts.txt")
-                    with threading.Lock():
-                        with open(output_file, "a", encoding="utf-8") as f:
-                            f.write(f"{email}----{password}----oauth=ok\n")
-                    
-                    return True, email, password, "注册成功 + OAuth 成功"
-                else:
-                    print(f"{tag} ⚠️ OAuth 失败")
-                    if oauth_required:
-                        # OAuth 失败但是必需的，如果还有重试机会则重试
-                        if attempt < max_retries - 1:
-                            print(f"{tag} OAuth 失败，准备重试整个流程...")
-                            continue
-                        return False, email, password, "OAuth 失败（必需）"
-                    else:
-                        # 保存账号信息（无 OAuth）
-                        output_file = config.get("output_file", "registered_accounts.txt")
-                        with threading.Lock():
-                            with open(output_file, "a", encoding="utf-8") as f:
-                                f.write(f"{email}----{password}----oauth=failed\n")
-                        return True, email, password, "注册成功（OAuth 失败）"
-            else:
-                # 不启用 OAuth，直接保存账号
+                # 保存账号信息
                 output_file = config.get("output_file", "registered_accounts.txt")
                 with threading.Lock():
                     with open(output_file, "a", encoding="utf-8") as f:
-                        f.write(f"{email}----{password}\n")
-                return True, email, password, "注册成功"
+                        f.write(f"{email}----{password}----oauth=ok\n")
+                
+                return True, email, password, "注册成功 + OAuth 成功"
+
+            print(f"{tag} ⚠️ OAuth 失败")
+            if attempt < max_retries - 1:
+                print(f"{tag} OAuth 失败，准备重试整个流程...")
+                continue
+            return False, email, password, "OAuth 失败（必需）"
             
         except Exception as e:
             error_msg = str(e)
@@ -162,7 +142,6 @@ def main():
     parser = argparse.ArgumentParser(description='ChatGPT 批量自动注册工具 v2.0')
     parser.add_argument('-n', '--num', type=int, default=1, help='注册账号数量（默认: 1）')
     parser.add_argument('-w', '--workers', type=int, default=1, help='并发线程数（默认: 1）')
-    parser.add_argument('--no-oauth', action='store_true', help='禁用 OAuth 登录')
     args = parser.parse_args()
     
     print("=" * 60)
@@ -176,9 +155,6 @@ def main():
     # 命令行参数覆盖配置文件
     total_accounts = args.num
     max_workers = args.workers
-    if args.no_oauth:
-        config['enable_oauth'] = False
-    
     # 初始化临时邮箱客户端
     mail_client = init_mail_client(config)
     
@@ -190,15 +166,13 @@ def main():
     
     # 获取配置参数
     output_file = config.get("output_file", "registered_accounts.txt")
-    enable_oauth = as_bool(config.get("enable_oauth", True))
-    
     print(f"\n配置信息:")
     print(f"  注册数量: {total_accounts}")
     print(f"  并发数: {max_workers}")
     print(f"  输出文件: {output_file}")
     print(f"  邮箱来源: {mail_client.api_base}")
     print(f"  Token 目录: {token_manager.token_dir}")
-    print(f"  启用 OAuth: {enable_oauth}")
+    print(f"  启用 OAuth: True")
     print()
     
     # 批量注册
