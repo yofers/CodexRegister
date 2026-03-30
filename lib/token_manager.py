@@ -24,8 +24,6 @@ class TokenManager:
         Args:
             config: 配置字典
         """
-        self.ak_file = config.get("ak_file", "ak.txt")
-        self.rk_file = config.get("rk_file", "rk.txt")
         self.token_json_dir = config.get("token_json_dir", "tokens")
         self.upload_api_url = config.get("upload_api_url", "")
         self.upload_api_token = config.get("upload_api_token", "")
@@ -37,7 +35,7 @@ class TokenManager:
 
     def save_tokens(self, email, tokens):
         """
-        保存 tokens 到所有目标（txt + JSON + 上传）
+        保存 tokens 到所有目标（JSON + 上传）
         
         Args:
             email: 邮箱地址
@@ -46,18 +44,6 @@ class TokenManager:
         access_token = tokens.get("access_token", "")
         refresh_token = tokens.get("refresh_token", "")
         id_token = tokens.get("id_token", "")
-
-        # 保存到 ak.txt
-        if access_token:
-            with _file_lock:
-                with open(self.ak_file, "a", encoding="utf-8") as f:
-                    f.write(f"{access_token}\n")
-
-        # 保存到 rk.txt
-        if refresh_token:
-            with _file_lock:
-                with open(self.rk_file, "a", encoding="utf-8") as f:
-                    f.write(f"{refresh_token}\n")
 
         if not access_token:
             return

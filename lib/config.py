@@ -9,22 +9,11 @@ import json
 def load_config():
     """从 config.json 加载配置，环境变量优先级更高"""
     config = {
-        "total_accounts": 3,
-        "concurrent_workers": 1,
         "mail_provider": "custom",
-        "skymail_admin_email": "",
-        "skymail_admin_password": "",
         "proxy": "",
         "output_file": "registered_accounts.txt",
-        "accounts_file": "accounts.txt",
-        "csv_file": "registered_accounts.csv",
         "enable_oauth": True,
         "oauth_required": True,
-        "oauth_issuer": "https://auth.openai.com",
-        "oauth_client_id": "app_EMoamEEZ73f0CkXaXp7hrann",
-        "oauth_redirect_uri": "http://localhost:1455/auth/callback",
-        "ak_file": "ak.txt",
-        "rk_file": "rk.txt",
         "token_json_dir": "tokens",
         "upload_api_url": "",
         "upload_api_token": "",
@@ -42,18 +31,9 @@ def load_config():
     # 环境变量优先级更高
     env_mappings = {
         "MAIL_PROVIDER": "mail_provider",
-        "SKYMAIL_ADMIN_EMAIL": "skymail_admin_email",
-        "SKYMAIL_ADMIN_PASSWORD": "skymail_admin_password",
         "PROXY": "proxy",
-        "TOTAL_ACCOUNTS": "total_accounts",
-        "CONCURRENT_WORKERS": "concurrent_workers",
         "ENABLE_OAUTH": "enable_oauth",
         "OAUTH_REQUIRED": "oauth_required",
-        "OAUTH_ISSUER": "oauth_issuer",
-        "OAUTH_CLIENT_ID": "oauth_client_id",
-        "OAUTH_REDIRECT_URI": "oauth_redirect_uri",
-        "AK_FILE": "ak_file",
-        "RK_FILE": "rk_file",
         "TOKEN_JSON_DIR": "token_json_dir",
         "UPLOAD_API_URL": "upload_api_url",
         "UPLOAD_API_TOKEN": "upload_api_token",
@@ -62,9 +42,7 @@ def load_config():
     for env_key, config_key in env_mappings.items():
         env_value = os.environ.get(env_key)
         if env_value is not None:
-            if config_key in ["total_accounts", "concurrent_workers"]:
-                config[config_key] = int(env_value)
-            elif config_key in ["enable_oauth", "oauth_required"]:
+            if config_key in ["enable_oauth", "oauth_required"]:
                 config[config_key] = env_value.lower() in ["1", "true", "yes", "y", "on"]
             else:
                 config[config_key] = env_value

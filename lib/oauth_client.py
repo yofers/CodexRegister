@@ -14,6 +14,10 @@ except ImportError:
 from .utils import generate_pkce, generate_datadog_trace
 from .sentinel_token import build_sentinel_token
 
+OAUTH_ISSUER = "https://auth.openai.com"
+OAUTH_CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann"
+OAUTH_REDIRECT_URI = "http://localhost:1455/auth/callback"
+
 
 class OAuthClient:
     """OAuth 客户端 - 用于获取 Access Token 和 Refresh Token"""
@@ -27,9 +31,9 @@ class OAuthClient:
             proxy: 代理地址
             verbose: 是否输出详细日志
         """
-        self.oauth_issuer = config.get("oauth_issuer", "https://auth.openai.com")
-        self.oauth_client_id = config.get("oauth_client_id", "app_EMoamEEZ73f0CkXaXp7hrann")
-        self.oauth_redirect_uri = config.get("oauth_redirect_uri", "http://localhost:1455/auth/callback")
+        self.oauth_issuer = OAUTH_ISSUER
+        self.oauth_client_id = OAUTH_CLIENT_ID
+        self.oauth_redirect_uri = OAUTH_REDIRECT_URI
         self.proxy = proxy
         self.verbose = verbose
         
