@@ -8,7 +8,7 @@ import time
 import threading
 import argparse
 import warnings
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, as_completed, wait
 
 # 禁用 SSL 警告
 warnings.filterwarnings('ignore', message='Unverified HTTPS request')
@@ -38,7 +38,7 @@ def register_one_account(idx, total, mail_client, token_manager, oauth_client, c
     Returns:
         tuple: (success, email, password, message)
     """
-    tag = f"[{idx}/{total}]"
+    tag = f"[{idx}]" if total is None else f"[{idx}/{total}]"
     
     for attempt in range(max_retries):
         if attempt > 0:
@@ -140,7 +140,7 @@ def main():
     """主函数"""
     # 解析命令行参数
     parser = argparse.ArgumentParser(description='ChatGPT 批量自动注册工具 v2.0')
-    parser.add_argument('-n', '--num', type=int, default=1, help='注册账号数量（默认: 1）')
+    parser.add_argument('-n', '--num', type=int, default=None, help='注册账号数量（默认: 不限）')
     parser.add_argument('-w', '--workers', type=int, default=1, help='并发线程数（默认: 1）')
     args = parser.parse_args()
     
@@ -167,7 +167,7 @@ def main():
     # 获取配置参数
     output_file = config.get("output_file", "registered_accounts.txt")
     print(f"\n配置信息:")
-    print(f"  注册数量: {total_accounts}")
+    print(f"  注册数量: {total_accounts if total_accounts is not None else '无限'}")
     print(f"  并发数: {max_workers}")
     print(f"  输出文件: {output_file}")
     print(f"  邮箱来源: {mail_client.api_base}")
@@ -180,7 +180,7 @@ def main():
     failed_count = 0
     start_time = time.time()
     
-    if max_workers == 1:
+    if max_workers == 1 and total_accounts is not None:
         # 串行执行
         for i in range(1, total_accounts + 1):
             success, email, password, msg = register_one_account(
@@ -190,7 +190,19 @@ def main():
                 success_count += 1
             else:
                 failed_count += 1
-    else:
+    elif max_workers == 1:
+        # 无限串行执行
+        i = 1
+        while True:
+            success, email, password, msg = register_one_account(
+                i, None, mail_client, token_manager, oauth_client, config
+            )
+            if success:
+                success_count += 1
+            else:
+                failed_count += 1
+            i += 1
+    elif total_accounts is not None:
         # 并发执行
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = []
@@ -211,19 +223,55 @@ def main():
                 except Exception as e:
                     print(f"❌ 任务异常: {e}")
                     failed_count += 1
+    else:
+        # 无限并发执行
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            next_idx = 1
+            futures = {
+                executor.submit(
+                    register_one_account,
+                    next_idx, None, mail_client, token_manager, oauth_client, config
+                )
+                for next_idx in range(1, max_workers + 1)
+            }
+            next_idx = max_workers + 1
+
+            while True:
+                done, pending = wait(futures, return_when=FIRST_COMPLETED)
+                futures = set(pending)
+
+                for future in done:
+                    try:
+                        success, email, password, msg = future.result()
+                        if success:
+                            success_count += 1
+                        else:
+                            failed_count += 1
+                    except Exception as e:
+                        print(f"❌ 任务异常: {e}")
+                        failed_count += 1
+
+                    futures.add(
+                        executor.submit(
+                            register_one_account,
+                            next_idx, None, mail_client, token_manager, oauth_client, config
+                        )
+                    )
+                    next_idx += 1
     
     end_time = time.time()
     total_time = end_time - start_time
+    processed_count = success_count + failed_count
     
     # 输出统计
     print("\n" + "=" * 60)
     print(f"注册完成！")
     print(f"  成功: {success_count}")
     print(f"  失败: {failed_count}")
-    print(f"  总计: {total_accounts}")
+    print(f"  总计: {total_accounts if total_accounts is not None else processed_count}")
     print(f"  总耗时: {total_time:.1f}s")
-    if success_count > 0:
-        print(f"  平均耗时: {total_time/total_accounts:.1f}s/账号")
+    if processed_count > 0:
+        print(f"  平均耗时: {total_time/processed_count:.1f}s/账号")
     print("=" * 60)
 
 

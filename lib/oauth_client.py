@@ -678,20 +678,83 @@ class OAuthClient:
         """解码 oai-client-auth-session cookie"""
         import json
         import base64
+        from urllib.parse import unquote
+
+        def _with_padding(raw):
+            return raw + ("=" * ((4 - len(raw) % 4) % 4))
+
+        def _try_parse_json(raw_text):
+            try:
+                data = json.loads(raw_text)
+                return data if isinstance(data, dict) else None
+            except Exception:
+                return None
+
+        def _decode_candidates(raw_value):
+            text = (raw_value or "").strip()
+            if not text:
+                return None
+
+            candidates = []
+
+            # 原始值、去引号值、URL decode 后的值都尝试一遍
+            candidates.append(text)
+            candidates.append(text.strip("\"'"))
+
+            unquoted = unquote(text)
+            if unquoted != text:
+                candidates.append(unquoted)
+                candidates.append(unquoted.strip("\"'"))
+
+            seen = set()
+            for candidate in candidates:
+                if not candidate or candidate in seen:
+                    continue
+                seen.add(candidate)
+
+                # 1. 直接就是 JSON
+                parsed = _try_parse_json(candidate)
+                if parsed:
+                    return parsed
+
+                # 2. 标准 base64
+                try:
+                    decoded = base64.b64decode(_with_padding(candidate)).decode("utf-8")
+                    parsed = _try_parse_json(decoded)
+                    if parsed:
+                        return parsed
+                except Exception:
+                    pass
+
+                # 3. URL-safe base64
+                try:
+                    decoded = base64.urlsafe_b64decode(_with_padding(candidate)).decode("utf-8")
+                    parsed = _try_parse_json(decoded)
+                    if parsed:
+                        return parsed
+                except Exception:
+                    pass
+
+            return None
         
         try:
+            found_cookie = False
             for cookie in self.session.cookies:
                 try:
                     name = cookie.name if hasattr(cookie, 'name') else str(cookie)
                     if name == "oai-client-auth-session":
+                        found_cookie = True
                         value = cookie.value if hasattr(cookie, 'value') else self.session.cookies.get(name)
                         if value:
-                            # 解码 base64
-                            decoded = base64.b64decode(value).decode('utf-8')
-                            data = json.loads(decoded)
-                            return data
+                            data = _decode_candidates(value)
+                            if data:
+                                return data
                 except Exception:
                     continue
+            if not found_cookie:
+                self._log("cookie 中未找到 oai-client-auth-session")
+            else:
+                self._log("oai-client-auth-session 存在，但无法按已知格式解码")
         except Exception:
             pass
         
