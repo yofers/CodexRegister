@@ -42,10 +42,21 @@ CodexRegister/
 - 可访问目标服务的网络环境
 - 如有需要，可用 HTTP/HTTPS 代理
 
-当前仓库没有附带 `requirements.txt`，至少需要安装以下依赖：
+建议在 `venv` 虚拟环境中运行本项目，避免依赖污染系统 Python 环境。
+
+示例：
 
 ```bash
-pip install curl_cffi requests
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -U pip
+pip install -r requirements.txt
+```
+
+项目依赖已写入 [`requirements.txt`](/Users/data/www/CodexRegister/requirements.txt)：
+
+```bash
+pip install -r requirements.txt
 ```
 
 `curl_cffi` 是核心依赖。注册流程、邮箱客户端和部分上传逻辑都依赖它模拟浏览器请求。
